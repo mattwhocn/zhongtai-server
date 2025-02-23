@@ -1,20 +1,32 @@
 const fs = require('fs');
 const path = require('path');
+const config = require('../config/config');
 
 class FileService {
   constructor(imagesDir, uploadsDir, excelService) {
     this.imagesDir = imagesDir;
     this.uploadsDir = uploadsDir;
-    this.jsonDir = path.join(__dirname, '../../data/json'); // 添加 JSON 目录
-    this.excelService = excelService;  // 注入ExcelService
+    this.jsonDir = config.paths.json;
+    this.excelService = excelService;
   }
 
-  // 确保目录存在
   ensureDirectories() {
+    // 确保基础目录存在
     [this.imagesDir, this.uploadsDir, this.jsonDir].forEach(dir => {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
+    });
+
+    // 确保每个模块的目录都存在
+    config.modules.forEach(module => {
+      const moduleUploadDir = path.join(this.uploadsDir, module);
+      const moduleJsonDir = path.join(this.jsonDir, module);
+      [moduleUploadDir, moduleJsonDir].forEach(dir => {
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+      });
     });
   }
 
@@ -39,30 +51,48 @@ class FileService {
     return false;
   }
 
-  // 获取内容列表
-  getContentList() {
-    const files = fs.readdirSync(this.uploadsDir);
-    return files.map(file => {
-      const isActive = file.includes('_active');
-      // 从文件名中提取原始名称
-      const originalName = this.extractOriginalName(file);
-      return {
-        id: file,
-        name: originalName,
-        path: `data/uploads/${file}`,
-        uploadTime: fs.statSync(path.join(this.uploadsDir, file)).mtime.toISOString(),
-        status: isActive ? 'used' : 'unused'
-      };
-    });
+  // 检查模块文件数量
+  checkModuleFileLimit(module) {
+    const moduleDir = path.join(this.uploadsDir, module);
+    if (!fs.existsSync(moduleDir)) return true;
+
+    const files = fs.readdirSync(moduleDir);
+    return files.length < 8;
   }
 
-  // 设置内容为使用状态并转换Excel
-  async setContentActive(filePath) {
+  // 获取内容列表
+  getContentList(module) {
+    const moduleDir = path.join(this.uploadsDir, module);
+    if (!fs.existsSync(moduleDir)) return [];
+
+    const files = fs.readdirSync(moduleDir);
+    return files
+      .map(file => {
+        const isActive = file.includes('_active');
+        const originalName = this.extractOriginalName(file);
+        const stats = fs.statSync(path.join(moduleDir, file));
+        return {
+          id: file,
+          name: originalName,
+          path: `data/uploads/${module}/${file}`,
+          uploadTime: stats.mtime.toISOString(),
+          status: isActive ? 'used' : 'unused',
+          module,
+          timestamp: stats.mtime.getTime() // 添加时间戳用于排序
+        };
+      })
+      .sort((a, b) => b.timestamp - a.timestamp) // 按时间戳倒序排序
+      .map(({ timestamp, ...rest }) => rest); // 移除时间戳字段，只用于排序
+  }
+
+  // 设置内容为使用状态
+  async setContentActive(filePath, module) {
     const fullPath = path.join(__dirname, '../..', filePath);
     if (fs.existsSync(fullPath)) {
-      // 先重置所有文件状态
       const dir = path.dirname(fullPath);
       const files = fs.readdirSync(dir);
+      
+      // 重置当前模块的所有文件状态
       files.forEach(file => {
         if (file.includes('_active')) {
           const oldPath = path.join(dir, file);
@@ -72,7 +102,6 @@ class FileService {
         }
       });
 
-      // 设置当前文件为active
       const filename = path.basename(fullPath);
       if (!filename.includes('_active')) {
         const ext = path.extname(filename);
@@ -81,9 +110,8 @@ class FileService {
         const newPath = path.join(dir, newName);
         fs.renameSync(fullPath, newPath);
 
-        // 转换新激活的Excel文件
         if (ext.toLowerCase() === '.xlsx' || ext.toLowerCase() === '.xls') {
-          const result = await this.excelService.convertExcelToJson(newName);
+          const result = await this.excelService.convertExcelToJson(newName, module);
           return { success: result.success };
         }
       }
@@ -94,20 +122,26 @@ class FileService {
 
   // 从文件名中提取原始名称
   extractOriginalName(filename) {
-    // 移除时间戳前缀和_active（如果存在）
-    const ext = path.extname(filename);
-    const nameWithoutExt = filename.slice(0, -ext.length);
-    const parts = nameWithoutExt.split('_');
-    
-    // 如果最后一部分是'active'，则移除
-    if (parts[parts.length - 1] === 'active') {
-      parts.pop();
+    try {
+      // 移除时间戳前缀和_active（如果存在）
+      const ext = path.extname(filename);
+      const nameWithoutExt = filename.slice(0, -ext.length);
+      const parts = nameWithoutExt.split('_');
+      
+      // 如果最后一部分是'active'，则移除
+      if (parts[parts.length - 1] === 'active') {
+        parts.pop();
+      }
+      // 移除时间戳（第一个部分）
+      parts.shift();
+      
+      // 重新组合文件名并确保编码正确
+      const originalName = parts.join('_') + ext;
+      return originalName;
+    } catch (error) {
+      console.error('Error extracting original name:', error);
+      return filename;
     }
-    // 移除时间戳（第一个部分）
-    parts.shift();
-    
-    // 重新组合文件名
-    return parts.join('_') + ext;
   }
 }
 

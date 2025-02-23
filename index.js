@@ -2,35 +2,37 @@ const express = require('express');
 const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
+const config = require('./config/config');
 const FileService = require('./services/fileService');
-const errorHandler = require('./middleware/errorHandler');
 const ExcelService = require('./services/excelService');
+const errorHandler = require('./middleware/errorHandler');
 
 const app = express();
 
 // 初始化文件服务
-const dataDir = path.join(__dirname, '../data');
-const imagesDir = path.join(dataDir, 'images');
-const uploadsDir = path.join(dataDir, 'uploads');
-const excelService = new ExcelService(uploadsDir);
-const fileService = new FileService(imagesDir, uploadsDir, excelService);
+const excelService = new ExcelService(config.paths.uploads);
+const fileService = new FileService(config.paths.images, config.paths.uploads, excelService);
 fileService.ensureDirectories();
 
 // 配置multer存储
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     const isImage = req.path.startsWith('/img/');
-    cb(null, isImage ? imagesDir : uploadsDir);
+    cb(null, isImage ? config.paths.images : config.paths.uploads);
   },
   filename: function (req, file, cb) {
+    // 解码文件名
+    const originalname = Buffer.from(file.originalname, 'latin1').toString('utf8');
     const timestamp = Date.now();
     const isImage = req.path.startsWith('/img/');
+    
     if (isImage) {
-      const ext = path.extname(file.originalname);
+      const ext = path.extname(originalname);
       cb(null, `${timestamp}${ext}`);
     } else {
       // 内容文件使用 时间戳_原始文件名 的格式
-      cb(null, `${timestamp}_${file.originalname}`);
+      cb(null, `${timestamp}_${originalname}`);
     }
   }
 });
@@ -40,9 +42,9 @@ const upload = multer({ storage: storage });
 app.use(cors());
 app.use(express.json());
 // 静态文件服务
-app.use('/data/images', express.static(imagesDir));
-app.use('/data/uploads', express.static(uploadsDir));
-app.use('/data/json', express.static(path.join(dataDir, 'json')));
+app.use('/data/images', express.static(config.paths.images));
+app.use('/data/uploads', express.static(config.paths.uploads));
+app.use('/data/json', express.static(config.paths.json));
 
 // 图片上传接口
 app.post('/img/upload', upload.single('file'), (req, res, next) => {
@@ -94,12 +96,37 @@ app.post('/content/upload', upload.single('file'), (req, res, next) => {
     if (!req.file) {
       return res.status(400).json({ success: false, error: '没有文件上传' });
     }
+
+    const module = req.body.module || 'home';
+    
+    // 检查文件数量限制
+    if (!fileService.checkModuleFileLimit(module)) {
+      if (req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+      }
+      return res.status(400).json({ 
+        success: false, 
+        error: '当前模块最多只能上传8个文件' 
+      });
+    }
+
+    const moduleDir = path.join(config.paths.uploads, module);
+    
+    // 移动文件到对应模块目录
+    const oldPath = req.file.path;
+    const newPath = path.join(moduleDir, req.file.filename);
+    fs.renameSync(oldPath, newPath);
+
+    // 确保返回的文件名编码正确
+    const originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
     res.json({ 
       success: true,
       data: {
-        path: `data/uploads/${req.file.filename}`,
-        name: req.file.originalname,
-        uploadTime: new Date().toISOString()
+        path: `data/uploads/${module}/${req.file.filename}`,
+        name: originalname,
+        uploadTime: new Date().toISOString(),
+        module
       }
     });
   } catch (error) {
@@ -110,8 +137,8 @@ app.post('/content/upload', upload.single('file'), (req, res, next) => {
 // 内容使用接口
 app.get('/content/use', (req, res, next) => {
   try {
-    const { path: filePath } = req.query;
-    fileService.setContentActive(filePath)
+    const { path: filePath, module } = req.query;
+    fileService.setContentActive(filePath, module)
       .then(result => {
         res.json(result);
       })
@@ -124,7 +151,8 @@ app.get('/content/use', (req, res, next) => {
 // 内容列表接口
 app.get('/content/list', (req, res, next) => {
   try {
-    const contentList = fileService.getContentList();
+    const module = req.query.module || 'home';
+    const contentList = fileService.getContentList(module);
     res.json({ success: true, data: contentList });
   } catch (error) {
     next(error);
@@ -145,7 +173,7 @@ app.get('/content/del', (req, res, next) => {
 // 错误处理中间件
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3001;
+const PORT = config.server.port;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 }); 

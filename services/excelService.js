@@ -1,11 +1,12 @@
 const xlsx = require('xlsx');
 const path = require('path');
 const fs = require('fs');
+const config = require('../config/config');
 
 class ExcelService {
   constructor(uploadsDir) {
     this.uploadsDir = uploadsDir;
-    this.jsonDir = path.join(__dirname, '../../data/json');
+    this.jsonDir = config.paths.json;
   }
 
   excelToJson(exceljson) {
@@ -45,25 +46,29 @@ class ExcelService {
   /**
    * 将Excel文件转换为JSON并保存
    * @param {string} filename - Excel文件名（包含时间戳和active标记）
+   * @param {string} module - 模块名
    * @returns {Object} 转换结果
    */
-  async convertExcelToJson(filename) {
+  async convertExcelToJson(filename, module) {
     try {
-      const excelPath = path.join(this.uploadsDir, filename);
+      const excelPath = path.join(this.uploadsDir, module, filename);
       const workbook = xlsx.readFile(excelPath);
       const sheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[sheetName];
       
-      // 转换为JSON数据
       const jsonData = xlsx.utils.sheet_to_json(worksheet);
+      const res = this.excelToJson(jsonData);
 
-      const res = this.excelToJson(jsonData)
-      // 生成JSON文件名（使用与Excel相同的时间戳）
-      const timestamp = filename.split('_')[0];
-      const jsonFilename = `${timestamp}_data.json`;
-      const jsonPath = path.join(this.jsonDir, jsonFilename);
+      // 使用模块名称作为JSON文件名
+      const jsonFilename = `${module}.json`;
+      const jsonPath = path.join(this.jsonDir, module, jsonFilename);
 
-      // 保存JSON文件
+      // 如果文件已存在，先删除旧文件
+      if (fs.existsSync(jsonPath)) {
+        fs.unlinkSync(jsonPath);
+      }
+
+      // 保存新的JSON文件
       fs.writeFileSync(jsonPath, JSON.stringify(res, null, 2));
 
       return { success: true };
