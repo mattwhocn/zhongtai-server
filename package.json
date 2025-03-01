@@ -4,7 +4,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "pm2:start": "pm2 start index.js --name zhongtai-server",
+    "pm2:stop": "pm2 stop zhongtai-server",
+    "pm2:restart": "pm2 restart zhongtai-server",
+    "pm2:delete": "pm2 delete zhongtai-server"
   },
   "dependencies": {
     "cors": "^2.8.5",
