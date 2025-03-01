@@ -41,6 +41,12 @@ const upload = multer({ storage: storage });
 
 app.use(cors());
 app.use(express.json());
+
+// 添加 hello 测试接口
+app.get('/hello', (req, res) => {
+  res.json({ message: 'world' });
+});
+
 // 静态文件服务
 app.use('/data/images', express.static(config.paths.images));
 app.use('/data/uploads', express.static(config.paths.uploads));
