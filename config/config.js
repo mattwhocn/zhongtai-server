@@ -26,13 +26,10 @@ const config = {
 
   // 模块配置
   modules: [
-    'home',
+    'banner',
+    'tech',
+    'jobs',
     'news',
-    'about',
-    'sustainability',
-    'career',
-    'contact',
-    'business'
   ]
 };
 

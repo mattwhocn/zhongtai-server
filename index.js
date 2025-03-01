@@ -97,7 +97,7 @@ app.post('/content/upload', upload.single('file'), (req, res, next) => {
       return res.status(400).json({ success: false, error: '没有文件上传' });
     }
 
-    const module = req.body.module || 'home';
+    const module = req.body.module || 'banner';
     
     // 检查文件数量限制
     if (!fileService.checkModuleFileLimit(module)) {
@@ -112,6 +112,11 @@ app.post('/content/upload', upload.single('file'), (req, res, next) => {
 
     const moduleDir = path.join(config.paths.uploads, module);
     
+    // 检查并创建模块目录
+    if (!fs.existsSync(moduleDir)) {
+      fs.mkdirSync(moduleDir, { recursive: true });
+    }
+
     // 移动文件到对应模块目录
     const oldPath = req.file.path;
     const newPath = path.join(moduleDir, req.file.filename);
@@ -151,7 +156,7 @@ app.get('/content/use', (req, res, next) => {
 // 内容列表接口
 app.get('/content/list', (req, res, next) => {
   try {
-    const module = req.query.module || 'home';
+    const module = req.query.module || 'banner';
     const contentList = fileService.getContentList(module);
     res.json({ success: true, data: contentList });
   } catch (error) {
