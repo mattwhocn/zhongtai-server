@@ -9,11 +9,12 @@ class FileService {
     this.uploadsDir = uploadsDir;
     this.jsonDir = config.paths.json;
     this.excelService = excelService;
+    this.markdownPath = config.paths.markdown;
   }
 
   ensureDirectories() {
     // 确保基础目录存在
-    [this.imagesDir, this.uploadsDir, this.jsonDir].forEach(dir => {
+    [this.imagesDir, this.uploadsDir, this.jsonDir, this.markdownPath].forEach(dir => {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
@@ -34,12 +35,20 @@ class FileService {
   // 获取图片列表
   getImageList() {
     const files = fs.readdirSync(this.imagesDir);
-    return files.map(file => ({
-      id: file,
-      name: file,
-      path: `data/images/${file}`,
-      uploadTime: fs.statSync(path.join(this.imagesDir, file)).mtime.toISOString()
-    }));
+    return files
+      .map(file => {
+        const filePath = path.join(this.imagesDir, file);
+        const stats = fs.statSync(filePath);
+        return {
+          id: file,
+          name: file,
+          path: `data/images/${file}`,
+          uploadTime: fs.statSync(path.join(this.imagesDir, file)).mtime.toISOString(),
+          timestamp: stats.mtime.getTime() // 添加时间戳用于排序
+        }
+      })
+      .sort((a, b) => b.timestamp - a.timestamp) // 按时间戳倒序排序
+      .map(({ timestamp, ...rest }) => rest); // 移除时间戳字段，只用于排序
   }
 
   // 删除文件
@@ -143,6 +152,29 @@ class FileService {
     } catch (error) {
       console.error('Error extracting original name:', error);
       return filename;
+    }
+  }
+
+  getMarkdownList() {
+    try {
+      const files = fs.readdirSync(this.markdownPath);
+      return files
+        .map(filename => {
+          const filePath = path.join(this.markdownPath, filename);
+          const stats = fs.statSync(filePath);
+          return {
+            path: `data/markdown/${filename}`,
+            name: filename,
+            uploadTime: stats.mtime.toISOString(),
+            timestamp: stats.mtime.getTime() // 添加时间戳用于排序
+          };
+        })
+        .sort((a, b) => b.timestamp - a.timestamp) // 按时间戳倒序排序
+        .map(({ timestamp, ...rest }) => rest); // 移除时间戳字段，只用于排序
+
+    } catch (error) {
+      console.error('获取 Markdown 列表失败:', error);
+      return [];
     }
   }
 }

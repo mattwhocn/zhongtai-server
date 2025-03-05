@@ -21,6 +21,9 @@ const config = {
     },
     get json() {
       return path.join(this.data, 'json');
+    },
+    get markdown() {
+      return path.join(this.data, 'markdown');
     }
   },
 
