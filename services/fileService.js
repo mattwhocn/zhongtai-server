@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('../config/config');
+const debug = require('debug')('app:server');
 
 class FileService {
   constructor(imagesDir, uploadsDir, excelService) {
@@ -109,9 +110,10 @@ class FileService {
         const newName = `${nameWithoutExt}_active${ext}`;
         const newPath = path.join(dir, newName);
         fs.renameSync(fullPath, newPath);
-
+        debug(ext);
         if (ext.toLowerCase() === '.xlsx' || ext.toLowerCase() === '.xls') {
           const result = await this.excelService.convertExcelToJson(newName, module);
+          debug(result);
           return { success: result.success };
         }
       }

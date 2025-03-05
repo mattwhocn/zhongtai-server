@@ -13,15 +13,7 @@ class ExcelService {
     try {
       // 按type分组处理数据
       const result = exceljson.reduce((acc, row) => {
-        const { type, ...rest } = row;
-        
-        // 确保type存在
-        if (!type) return acc;
-        
-        // 如果该type还没有数组，则创建一个
-        if (!acc[type]) {
-          acc[type] = [];
-        }
+        const { ...rest } = row;
         
         // 处理所有值，将undefined和null转换为空字符串
         const processedRow = Object.entries(rest).reduce((obj, [key, value]) => {
@@ -30,10 +22,10 @@ class ExcelService {
         }, {});
         
         // 将处理后的数据添加到对应type的数组中
-        acc[type].push(processedRow);
+        acc.push(processedRow);
         
         return acc;
-      }, {});
+      }, []);
       
       return result;
       
