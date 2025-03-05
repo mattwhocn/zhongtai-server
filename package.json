@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "NODE_ENV=development DEBUG=* node index.js",
+    "start:prod": "NODE_ENV=production node index.js",
+    "dev": "NODE_ENV=development DEBUG=* nodemon index.js",
     "pm2:start": "pm2 start index.js --name zhongtai-server",
     "pm2:stop": "pm2 stop zhongtai-server",
     "pm2:restart": "pm2 restart zhongtai-server",
@@ -11,6 +13,7 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
+    "debug": "^4.4.0",
     "express": "^4.18.2",
     "multer": "^1.4.5-lts.1",
     "mysql2": "^2.3.3",

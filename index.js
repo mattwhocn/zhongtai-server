@@ -51,6 +51,7 @@ app.get('/hello', (req, res) => {
 app.use('/data/images', express.static(config.paths.images));
 app.use('/data/uploads', express.static(config.paths.uploads));
 app.use('/data/json', express.static(config.paths.json));
+app.use('/data/markdown', express.static(config.paths.markdown));
 
 // 图片上传接口
 app.post('/img/upload', upload.single('file'), (req, res, next) => {
@@ -176,6 +177,62 @@ app.get('/content/del', (req, res, next) => {
     const { path: filePath } = req.query;
     const success = fileService.deleteFile(filePath);
     res.json({ success });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Markdown 上传接口
+app.post('/markdown/upload', upload.single('file'), (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: '没有文件上传' });
+    }
+
+    const markdownDir = config.paths.markdown;
+    
+    // 检查并创建 markdown 目录
+    if (!fs.existsSync(markdownDir)) {
+      fs.mkdirSync(markdownDir, { recursive: true });
+    }
+
+    // 移动文件到 markdown 目录
+    const oldPath = req.file.path;
+    const newPath = path.join(markdownDir, req.file.filename);
+    fs.renameSync(oldPath, newPath);
+
+    // 确保返回的文件名编码正确
+    const originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+
+    res.json({
+      success: true,
+      data: {
+        path: `data/markdown/${req.file.filename}`,
+        name: originalname,
+        uploadTime: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Markdown 删除接口
+app.get('/markdown/del', (req, res, next) => {
+  try {
+    const { path: filePath } = req.query;
+    const success = fileService.deleteFile(filePath);
+    res.json({ success });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Markdown 列表接口
+app.get('/markdown/list', (req, res, next) => {
+  try {
+    const markdownList = fileService.getMarkdownList();
+    res.json({ success: true, data: markdownList });
   } catch (error) {
     next(error);
   }
